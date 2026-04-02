@@ -1,0 +1,2 @@
+model,patient,bAcc,sensitivity,specificity,TP,FP,TN,FN,cv_mean,cv_std,final_loss,stopped_epoch
+Classic_ML_SVM,chb03,0.9922,0.9875,0.9969,79,1,321,1,0.9675,0.0173,,N/A

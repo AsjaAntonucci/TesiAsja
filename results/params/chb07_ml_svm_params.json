@@ -1,0 +1,77 @@
+{
+  "patient": "chb07",
+  "model": "Classic_ML_SVM",
+  "svm_params": {
+    "kernel": "rbf",
+    "C": 1.0,
+    "gamma": "scale",
+    "class_weight": "balanced",
+    "probability": false
+  },
+  "feature_params": {
+    "n_channels": 21,
+    "n_bands": 8,
+    "n_features": 504,
+    "fs": 256,
+    "W": 3,
+    "bands": {
+      "band1": [
+        0.5,
+        3.5625
+      ],
+      "band2": [
+        3.5625,
+        6.625
+      ],
+      "band3": [
+        6.625,
+        9.6875
+      ],
+      "band4": [
+        9.6875,
+        12.75
+      ],
+      "band5": [
+        12.75,
+        15.8125
+      ],
+      "band6": [
+        15.8125,
+        18.875
+      ],
+      "band7": [
+        18.875,
+        21.9375
+      ],
+      "band8": [
+        21.9375,
+        25.0
+      ]
+    },
+    "filter_order": 2
+  },
+  "train_params": {
+    "train_split": 0.8,
+    "cv_folds": 5,
+    "cv_strategy": "StratifiedKFold",
+    "scoring": "balanced_accuracy",
+    "scaler": "StandardScaler"
+  },
+  "n_features": 504,
+  "n_train": 1298,
+  "n_test": 325,
+  "n_ictal_train": 260,
+  "n_ictal_test": 65,
+  "cv_scores": [
+    0.9952,
+    0.988,
+    0.988,
+    1.0,
+    0.9903
+  ],
+  "cv_mean": 0.9923,
+  "cv_std": 0.0047,
+  "test_bAcc": 1.0,
+  "sensitivity": 1.0,
+  "specificity": 1.0
+}

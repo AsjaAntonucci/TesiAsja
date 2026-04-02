@@ -15,19 +15,19 @@ MODEL_PARAMS = {
 }
 
 TRAIN_PARAMS = {
-    'optimizer': 'Adam',
-    'lr': 1e-3,
-    'weight_decay': 1e-4,
-    'loss': 'CrossEntropyLoss',
-    'epochs': 500,
-    'patience': 25,
-    'batch_size': 32,
-    'train_split': 0.8,
-    'cv_folds': 5,
-    'cv_strategy': 'StratifiedKFold',
-    'scoring': 'balanced_accuracy',
-    'seed': 42,
-    'shuffle_train': False,
+    'optimizer':       'Adam',
+    'lr':              1e-3,
+    'weight_decay':    0.0,
+    'loss':            'CrossEntropyLoss',
+    'epochs':          500,
+    'patience':        25,
+    'batch_size':      32,
+    'train_split':     0.8,
+    'val_split_final': 0.9,
+    'cv_folds':        5,
+    'cv_strategy':     'StratifiedKFold',
+    'scoring':         'balanced_accuracy',
+    'seed':            42,
 }
 
 

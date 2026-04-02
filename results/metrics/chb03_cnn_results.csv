@@ -1,0 +1,2 @@
+model,patient,bAcc,sensitivity,specificity,TP,FP,TN,FN,cv_mean,cv_std,final_loss,stopped_epoch
+EpiDeNet_CNN,chb03,0.9781,0.9625,0.9938,77,2,320,3,0.9833,0.0079,0.040661,36

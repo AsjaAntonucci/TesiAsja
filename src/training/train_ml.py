@@ -9,7 +9,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pathlib import Path
 from sklearn.metrics import balanced_accuracy_score, confusion_matrix
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 import joblib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -33,10 +33,10 @@ for d in [RESULTS_DIR, CHECKPOINT_DIR, PARAMS_DIR, PLOTS_DIR]:
 
 # ─── Carica dati ──────────────────────────────────────────────────────────────
 data_path = Path("data") / "preprocessed" / f"{PATIENT_ID}_preprocessed.pt"
-data = torch.load(data_path)
+data = torch.load(data_path, weights_only=False)
 X = data['X'].numpy()
 y = data['y'].numpy()
-print(f"✅ Dati caricati — Shape X: {X.shape}, y: {y.shape}")
+print(f"[OK] Dati caricati — Shape X: {X.shape}, y: {y.shape}")
 
 # ─── Feature extraction ───────────────────────────────────────────────────────
 print(f"Estrazione feature spettrali ({FEATURE_PARAMS['n_channels']} canali x {FEATURE_PARAMS['n_bands']} bande) with temporal stacking W={FEATURE_PARAMS['W']}...")
@@ -45,9 +45,9 @@ y_stacked = y[FEATURE_PARAMS['W'] - 1:]  # label dell'ultima finestra del triple
 print(f"   Shape feature stacked: {X_feat.shape}, label: {y_stacked.shape}")
 
 # ─── Train / Test split ───────────────────────────────────────────────────────
-split = int(len(y_stacked) * TRAIN_PARAMS['train_split'])
-X_train, X_test = X_feat[:split], X_feat[split:]
-y_train, y_test = y_stacked[:split], y_stacked[split:]
+X_train, X_test, y_train, y_test = train_test_split(
+    X_feat, y_stacked, test_size=0.2, stratify=y_stacked, random_state=42
+)
 
 # ─── Cross-Validation (5-fold) — proxy della loss curve ──────────────────────
 print(f"\nCross-Validation ({TRAIN_PARAMS['cv_folds']}-fold stratificato)...")
@@ -79,13 +79,13 @@ plt.tight_layout()
 plot_path = PLOTS_DIR / f"{PATIENT_ID}_ml_svm_cv.png"
 plt.savefig(plot_path, dpi=150)
 plt.close()
-print(f"   📈 Grafico CV salvato in: {plot_path}")
+print(f"   [PLOT] Grafico CV salvato in: {plot_path}")
 
 # ─── Training finale su tutto il train set ────────────────────────────────────
 print("\nTraining SVM (RBF kernel) — fit finale...")
 model = build_model()
 model.fit(X_train, y_train)
-print("   Training completato ✅")
+print("   Training completato [OK]")
 
 # ─── Valutazione ──────────────────────────────────────────────────────────────
 y_pred = model.predict(X_test)
@@ -94,7 +94,7 @@ tn, fp, fn, tp = confusion_matrix(y_test, y_pred, labels=[0, 1]).ravel()
 sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
 specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
 
-print(f"\n✅ Risultati {PATIENT_ID} — Classic ML (SVM):")
+print(f"\n[OK] Risultati {PATIENT_ID} — Classic ML (SVM):")
 print(f"   Balanced Accuracy : {bAcc:.4f}")
 print(f"   Sensitivity       : {sensitivity:.4f}")
 print(f"   Specificity       : {specificity:.4f}")
@@ -123,29 +123,28 @@ params_log = {
 params_path = PARAMS_DIR / f"{PATIENT_ID}_ml_svm_params.json"
 with open(params_path, 'w') as f:
     json.dump(params_log, f, indent=2)
-print(f"   🔧 Parametri salvati in: {params_path}")
+print(f"   [JSON] Parametri salvati in: {params_path}")
 
 # ─── Salva risultati CSV (schema unificato benchmark) ─────────────────────────
-csv_path = RESULTS_DIR / "benchmark_results.csv"
-write_header = not csv_path.exists()
-with open(csv_path, 'a', newline='') as f:
+csv_path = RESULTS_DIR / f"{PATIENT_ID}_ml_results.csv"
+with open(csv_path, 'w', newline='') as f:
     writer = csv.DictWriter(f, fieldnames=[
-        "model","patient","bAcc","sensitivity","specificity","TP","FP","TN","FN",
-        "cv_mean","cv_std","final_loss","stopped_epoch"])
-    if write_header:
-        writer.writeheader()
+        "model","patient","bAcc","sensitivity","specificity",
+        "TP","FP","TN","FN","cv_mean","cv_std","final_loss","stopped_epoch"])
+    writer.writeheader()
     writer.writerow({
         "model": "Classic_ML_SVM", "patient": PATIENT_ID,
-        "bAcc": round(bAcc, 4), "sensitivity": round(sensitivity, 4), "specificity": round(specificity, 4),
+        "bAcc": round(bAcc, 4), "sensitivity": round(sensitivity, 4),
+        "specificity": round(specificity, 4),
         "TP": int(tp), "FP": int(fp), "TN": int(tn), "FN": int(fn),
-        "cv_mean":    round(float(cv_scores.mean()), 4),
-        "cv_std":     round(float(cv_scores.std()),  4),
-        "final_loss": "",   # non applicabile per SVM
+        "cv_mean":       round(float(cv_scores.mean()), 4),
+        "cv_std":        round(float(cv_scores.std()),  4),
+        "final_loss":    "",
         "stopped_epoch": "N/A",
     })
-print(f"  📊 Risultati salvati in benchmark_results.csv")
+print(f"  [CSV] Risultati salvati in {csv_path.name}")
 
 # ─── Salva modello ────────────────────────────────────────────────────────────
 ckpt_path = CHECKPOINT_DIR / f"{PATIENT_ID}_ml_svm.pkl"
 joblib.dump(model, ckpt_path)
-print(f"   💾 Modello salvato in: {ckpt_path}")
+print(f"   [SAVE] Modello salvato in: {ckpt_path}")

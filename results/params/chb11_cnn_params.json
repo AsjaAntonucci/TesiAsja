@@ -1,0 +1,199 @@
+{
+  "patient": "chb11",
+  "model": "EpiDeNet_CNN",
+  "device": "cuda",
+  "model_params": {
+    "n_channels": 21,
+    "n_classes": 2,
+    "input_shape": "(batch, 1, 21, 256)",
+    "architecture": "5x [Conv2D(1D-separabile) + BN + ReLU + MaxPool] -> GAP -> Linear",
+    "blocks": [
+      {
+        "in_ch": 1,
+        "out_ch": 8,
+        "conv_kernel": [
+          1,
+          4
+        ],
+        "pool_kernel": [
+          1,
+          4
+        ],
+        "role": "filtri temporali"
+      },
+      {
+        "in_ch": 8,
+        "out_ch": 16,
+        "conv_kernel": [
+          1,
+          8
+        ],
+        "pool_kernel": [
+          1,
+          2
+        ],
+        "role": "filtri temporali"
+      },
+      {
+        "in_ch": 16,
+        "out_ch": 32,
+        "conv_kernel": [
+          1,
+          4
+        ],
+        "pool_kernel": [
+          1,
+          2
+        ],
+        "role": "filtri temporali"
+      },
+      {
+        "in_ch": 32,
+        "out_ch": 32,
+        "conv_kernel": [
+          3,
+          1
+        ],
+        "pool_kernel": [
+          21,
+          1
+        ],
+        "role": "filtri spaziali"
+      },
+      {
+        "in_ch": 32,
+        "out_ch": 64,
+        "conv_kernel": [
+          1,
+          1
+        ],
+        "pool_kernel": [
+          1,
+          1
+        ],
+        "role": "compressione finale"
+      }
+    ],
+    "temporal_reduction": "256 ->div4-> 64 ->div2-> 32 ->div2-> 16 -> spatial collapse -> GAP",
+    "gap": "AdaptiveAvgPool2d(1)",
+    "classifier_in": 64,
+    "reference": "Ferrara PhD Thesis (2025) + Sensors 2025 \u2014 kernel 1D separabili, pool adattati a 1s/256Hz"
+  },
+  "train_params": {
+    "optimizer": "Adam",
+    "lr": 0.001,
+    "weight_decay": 0.0,
+    "loss": "CrossEntropyLoss",
+    "epochs": 150,
+    "batch_size": 64,
+    "train_split": 0.8,
+    "val_split_final": 0.9,
+    "cv_folds": 5,
+    "cv_strategy": "StratifiedKFold",
+    "early_stopping_patience": 10,
+    "seed": 42
+  },
+  "n_params": 8658,
+  "n_train": 2901,
+  "n_val": 323,
+  "n_test": 806,
+  "n_ictal_train": 584,
+  "n_ictal_val": 61,
+  "n_ictal_test": 161,
+  "cv_scores": [
+    0.9855,
+    0.9903,
+    0.9748,
+    0.9777,
+    0.9574
+  ],
+  "cv_mean": 0.9771,
+  "cv_std": 0.0113,
+  "train_loss_history": [
+    0.309752,
+    0.139489,
+    0.090648,
+    0.067713,
+    0.057855,
+    0.046335,
+    0.038609,
+    0.030391,
+    0.023774,
+    0.026483,
+    0.021083,
+    0.021978,
+    0.018979,
+    0.023765,
+    0.023925,
+    0.011182,
+    0.00672,
+    0.005973,
+    0.005501,
+    0.00647,
+    0.007719,
+    0.009743,
+    0.005446,
+    0.003393,
+    0.003688,
+    0.002586,
+    0.001855,
+    0.001753,
+    0.001575,
+    0.001364,
+    0.001409,
+    0.001457,
+    0.001307,
+    0.001569,
+    0.00185,
+    0.001638,
+    0.008202,
+    0.01716,
+    0.007571
+  ],
+  "val_loss_history": [
+    0.205704,
+    0.107977,
+    0.081174,
+    0.063331,
+    0.049846,
+    0.048358,
+    0.053216,
+    0.040404,
+    0.061958,
+    0.030456,
+    0.024412,
+    0.042333,
+    0.033655,
+    0.441299,
+    0.032867,
+    0.027686,
+    0.027735,
+    0.016657,
+    0.023381,
+    0.041493,
+    0.041259,
+    0.019431,
+    0.012686,
+    0.011401,
+    0.039869,
+    0.031049,
+    0.01258,
+    0.020513,
+    0.008306,
+    0.01608,
+    0.01235,
+    0.024694,
+    0.028008,
+    0.03135,
+    0.015089,
+    0.009058,
+    0.017057,
+    0.019894,
+    0.009929
+  ],
+  "best_val_loss": 0.008306,
+  "stopped_epoch": 39,
+  "test_bAcc": 0.9837,
+  "sensitivity": 0.9752,
+  "specificity": 0.9922
+}
