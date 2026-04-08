@@ -1,4 +1,4 @@
-# SPDNet Seizure Detection
+# Benchmark Seizure Detection
 
 Epileptic seizure detection comparing **SPDNet** (Riemannian), **EpiDeNet** (CNN), and **SVM** on CHB-MIT EEG data.
 
