@@ -1,3 +1,31 @@
+"""
+═══════════════════════════════════════════════════════════════════════════════
+                    TRAINING - EpiDeNet CNN Model
+═══════════════════════════════════════════════════════════════════════════════
+
+TRAINING STEPS:
+  1. PARSE INPUT       → Accepts patient ID from command line
+  2. LOAD DATA         → Loads preprocessed EEG tensors (X, y) per patient
+  3. PREPARE SPLITS    → Stratified cross-validation (5-fold) setup
+  4. TRAIN MODEL       → EpiDeNet CNN training with Adam optimizer + early stopping
+  5. EVALUATE          → Computes balanced accuracy, sensitivity, confusion matrix
+  6. SAVE RESULTS      → Exports metrics, checkpoint, loss plots, parameters
+
+INPUT:
+  data/preprocessed/{patient_id}_preprocessed.pt
+
+OUTPUT:
+  results/metrics/{patient_id}_cnn_results.csv      (evaluation metrics)
+  results/checkpoints/{patient_id}_cnn_epidenet.pt  (trained model weights)
+  results/plots/{patient_id}_cnn_*.png              (loss and CV curves)
+  results/params/{patient_id}_cnn_params.json       (model configuration)
+
+USAGE:
+  python train_cnn.py -p chb01
+  python train_cnn.py --patient 01
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
 import argparse
 import copy
 import csv

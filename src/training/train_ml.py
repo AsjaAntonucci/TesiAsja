@@ -1,3 +1,31 @@
+"""
+═══════════════════════════════════════════════════════════════════════════════
+                    TRAINING - SVM Baseline Model
+═══════════════════════════════════════════════════════════════════════════════
+
+TRAINING STEPS:
+  1. PARSE INPUT       → Accepts patient ID from command line
+  2. LOAD DATA         → Loads preprocessed EEG tensors (X, y) per patient
+  3. EXTRACT FEATURES  → Computes log-power spectral features from raw signals
+  4. PREPARE SPLITS    → Stratified cross-validation (5-fold) setup
+  5. TRAIN SVM         → SVM classification with cross-validation scoring
+  6. EVALUATE          → Computes balanced accuracy, sensitivity, confusion matrix
+  7. SAVE RESULTS      → Exports metrics, model pickle, parameters
+
+INPUT:
+  data/preprocessed/{patient_id}_preprocessed.pt
+
+OUTPUT:
+  results/metrics/{patient_id}_ml_results.csv       (evaluation metrics)
+  results/checkpoints/{patient_id}_ml_svm.pkl      (trained SVM model)
+  results/params/{patient_id}_ml_svm_params.json   (model configuration)
+
+USAGE:
+  python train_ml.py -p chb01
+  python train_ml.py --patient 01
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
 import argparse
 import csv
 import json

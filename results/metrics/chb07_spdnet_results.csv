@@ -1,2 +1,2 @@
 model,patient,bAcc,sensitivity,specificity,TP,FP,TN,FN,cv_mean,cv_std,final_loss,stopped_epoch
-SPDNet_classic,chb07,0.9673,0.9538,0.9808,62,5,255,3,0.9664,0.0271,0.072986,308
+SPDNet_v2,chb07,0.9923,1.0,0.9846,65,4,256,0,0.9673,0.026,0.043208,129

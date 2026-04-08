@@ -4,17 +4,17 @@
 ═══════════════════════════════════════════════════════════════════════════════
 
 PIPELINE STEPS:
-  1. PARSE INPUT       → Accetta ID del paziente da linea di comando
-  2. LOAD ANNOTATIONS  → Estrae gli intervalli delle crisi dal file summary
-  3. CHANNEL SELECTION → Lista fissa 21 canali bipolari
+  1. PARSE INPUT       → Accepts patient ID from command line
+  2. LOAD ANNOTATIONS  → Extracts seizure intervals from summary file
+  3. CHANNEL SELECTION → Fixed 21 bipolar channels
   4. APPLY FILTERS     → HP 0.5 Hz + LP 80 Hz + Notch 60 Hz Butterworth
-  5. ARTIFACT REMOVAL  → Zeroing campioni oltre ±2σ per canale
-  6. SEGMENT DATA      → Divide il segnale in finestre temporali di 1 secondo
-  7. LABEL WINDOWS     → Etichetta come ictale (crisi) o non-ictale
-  8. CLASS BALANCING   → Bilancia le classi 4:1 mantenendo ordine temporale
-  9. SAVE TENSOR       → Esporta in formato PyTorch (.pt)
+  5. ARTIFACT REMOVAL  → Zero samples beyond ±2σ per channel
+  6. SEGMENT DATA      → Splits signal into 1-second time windows
+  7. LABEL WINDOWS     → Labels as ictal (seizure) or non-ictal
+  8. CLASS BALANCING   → Balances classes 4:1 while maintaining temporal order
+  9. SAVE TENSOR       → Exports to PyTorch format (.pt)
 
-OUTPUT: File .pt contenente tensori X (21, 256) e y (etichette)
+OUTPUT: .pt file containing tensors X (21, 256) and y (labels)
 ═══════════════════════════════════════════════════════════════════════════════
 """
 
@@ -28,17 +28,17 @@ from pathlib import Path
 from scipy.signal import butter, filtfilt
 
 
-# ─── Silenzio warning MNE canali non univoci ─────────────────────────────────
+# ─── Silence MNE non-unique channel warnings ────────────────────────────────
 warnings.filterwarnings(
     'ignore',
     message='Channel names are not unique',
     category=RuntimeWarning
 )
-# ─── [Fix] SEED PER RIPRODUCIBILITÀ ──────────────────────────────────────────
+# ─── [Fix] SEED FOR REPRODUCIBILITY ──────────────────────────────────────────
 SEED = 42
 np.random.seed(SEED)
 
-# ─── LISTA FISSA 21 CANALI BIPOLARI ────────────────────────────────────────────
+# ─── FIXED 21 BIPOLAR CHANNELS ────────────────────────────────────────────────
 BIPOLAR_CHANNELS = [
     'FP1-F7', 'F7-T7',  'T7-P7',   'P7-O1',
     'FP1-F3', 'F3-C3',  'C3-P3',   'P3-O1',
@@ -48,22 +48,22 @@ BIPOLAR_CHANNELS = [
 ]
 EXPECTED_CHANNELS = len(BIPOLAR_CHANNELS)  # 21
 
-# ─── STEP 1: PARSE ARGOMENTI DA RIGA DI COMANDO ──────────────────────────────
+# ─── STEP 1: PARSE COMMAND LINE ARGUMENTS ─────────────────────────────────────
 parser = argparse.ArgumentParser(
-    description='Preprocessa i dati EEG del paziente CHB-MIT'
+    description='Preprocesses CHB-MIT EEG data for seizure detection'
 )
 parser.add_argument(
     '-p', '--patient',
     type=str,
     required=True,
-    help='ID del paziente (es. chb01 oppure 01)'
+    help='Patient ID (e.g., chb01 or 01)'
 )
 args = parser.parse_args()
 
 patient_input = args.patient.strip()
 PATIENT_ID = patient_input if patient_input.startswith('chb') else f"chb{patient_input.zfill(2)}"
 
-# ─── CONFIGURAZIONE PERCORSI E PARAMETRI ─────────────────────────────────────
+# ─── CONFIGURATION: PATHS AND PARAMETERS ──────────────────────────────────────
 BASE_PATH    = Path("Dataset_CHB-MIT")
 DATASET_PATH = BASE_PATH / PATIENT_ID
 OUTPUT_DIR   = Path("data") / "preprocessed"
@@ -71,7 +71,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 FS = 256
 
-# ─── STEP 2: PARSING DEL FILE DI SUMMARY ─────────────────────────────────────
+# ─── STEP 2: PARSE SUMMARY FILE ───────────────────────────────────────────────
 def parse_summary(summary_path):
     seizures = {}
     current_file = None
@@ -94,14 +94,14 @@ def parse_summary(summary_path):
 
 summary_path = DATASET_PATH / f"{PATIENT_ID}-summary.txt"
 annotations  = parse_summary(summary_path)
-print(f"Annotazioni caricate: {annotations}")
+print(f"Loaded annotations: {annotations}")
 
-# ─── STEP 3: SELEZIONE CANALI ────────────────────────────────────────────────
+# ─── STEP 3: CHANNEL SELECTION ────────────────────────────────────────────────
 
 def _monopolar_to_bipolar(raw):
     """
-    Converte una registrazione monopolare in bipolara.
-    Calcola V(elettrodo_A) - V(elettrodo_B) per ogni coppia di BIPOLAR_CHANNELS.
+    Converts monopolar recording to bipolar.
+    Computes V(electrode_A) - V(electrode_B) for each bipolar channel pair.
     """
     data, _ = raw[:, :]
     new_data = np.zeros((EXPECTED_CHANNELS, data.shape[1]))
@@ -127,31 +127,31 @@ def _monopolar_to_bipolar(raw):
                 break
 
         if not (flag_1 and flag_2):
-            print(f"   ⚠ Monopolare: elettrodi non trovati per '{ch_name}'")
+            print(f"   ⚠ Monopolar: electrodes not found for '{ch_name}'")
 
     return new_data  # shape: (21, T)
 
 
 def extract_channels(raw):
     """
-    Estrae i 21 canali bipolari dalla registrazione EEG.
-    Gestisce sia registrazioni già bipolari che monopolari.
+    Extracts 21 bipolar channels from EEG recording.
+    Handles both bipolar and monopolar recordings.
 
     Returns:
-        np.ndarray shape (21, T), oppure None se i canali non sono estraibili.
+        np.ndarray shape (21, T), or None if channels cannot be extracted.
     """
     first_ch = raw.info['ch_names'][0]
     is_monopolar = ('-CS' in first_ch) or ('-' not in first_ch)
 
     if is_monopolar:
-        print(f"   → Registrazione monopolare, conversione in bipolara...")
+        print(f"   → Monopolar recording, converting to bipolar...")
         data = _monopolar_to_bipolar(raw)
 
     else:
         available = set(raw.ch_names)
         missing   = [ch for ch in BIPOLAR_CHANNELS if ch not in available]
         if missing:
-            print(f"   ⚠ Canali mancanti: {missing} — skip file")
+            print(f"   ⚠ Missing channels: {missing} — skip file")
             return None
 
         raw_sel = raw.copy().pick(BIPOLAR_CHANNELS, verbose=False)
@@ -169,12 +169,12 @@ def extract_channels(raw):
         data, _ = raw_sel[:, :]
 
     if data.shape[0] != EXPECTED_CHANNELS:
-        print(f"   ⚠ Shape inattesa: {data.shape[0]} canali (attesi {EXPECTED_CHANNELS}) — skip")
+        print(f"   ⚠ Unexpected shape: {data.shape[0]} channels (expected {EXPECTED_CHANNELS}) — skip")
         return None
 
     return data  # shape: (21, T)
 
-# ─── STEP 4: FILTRAGGIO DEL SEGNALE ──────────────────────────────────────────
+# ─── STEP 4: SIGNAL FILTERING ─────────────────────────────────────────────────
 def highpass(data, cutoff=0.5, fs=FS, order=2):
     b, a = butter(order, cutoff / (fs / 2), btype='high')
     return filtfilt(b, a, data, axis=-1)
@@ -186,7 +186,7 @@ def lowpass(data, cutoff=80.0, fs=FS, order=2):
 
 
 def notch(data, freq=60.0, fs=FS, order=2):
-    # filtfilt raddoppia l'ordine → order=2 produce effettivo ordine 4 zero-phase
+    # filtfilt doubles the order → order=2 produces effective order 4 zero-phase
     low  = (freq - 1.0) / (fs / 2)
     high = (freq + 1.0) / (fs / 2)
     b, a = butter(order, [low, high], btype='bandstop')
@@ -201,23 +201,23 @@ def preprocess(raw_data):
     x = lowpass(x)
     x = notch(x)
 
-    # Artifact rejection: zeroing campioni oltre ±2σ per canale
+    # Artifact rejection: zero samples beyond ±2σ per channel
     for ch in range(x.shape[0]):
         mask = np.abs(x[ch] - x[ch].mean()) > 2 * x[ch].std()
         x[ch, mask] = 0.0
 
-    # Z-score: media zero, varianza unitaria per canale
+    # Z-score normalization: zero mean, unit variance per channel
     x = (x - x.mean(axis=-1, keepdims=True)) / (x.std(axis=-1, keepdims=True) + 1e-8)
     return x
 
-# ─── STEP 5: CARICAMENTO, PREPROCESSING E SEGMENTAZIONE ─────────────────────
+# ─── STEP 5: LOAD, PREPROCESS AND SEGMENT ──────────────────────────────────────
 def load_and_segment(edf_path, seizure_intervals, fs=FS, window_sec=1):
     raw = mne.io.read_raw_edf(str(edf_path), preload=True, verbose=False)
 
-    # ─── Fix duplicati MNE (CHB-MIT: T8-P8 e T8-P8-0 coesistono nel file EDF) ──
-    # MNE auto-rinomina: T8-P8 → T8-P8-0, T8-P8-0 → T8-P8-1.
-    # Strategia: pick esclude T8-P8-0 (duplicato indesiderato),
-    # poi rinomina T8-P8-1 → T8-P8-0 senza conflitti.
+    # ─── Fix MNE duplicates (CHB-MIT: T8-P8 and T8-P8-0 coexist in EDF file) ────
+    # MNE auto-renames: T8-P8 → T8-P8-0, T8-P8-0 → T8-P8-1.
+    # Strategy: pick excludes T8-P8-0 (unwanted duplicate),
+    # then renames T8-P8-1 → T8-P8-0 without conflicts.
     if 'T8-P8-0' in raw.ch_names and 'T8-P8-1' in raw.ch_names:
         ch_to_keep = [ch for ch in raw.ch_names if ch != 'T8-P8-0']
         raw.pick(ch_to_keep, verbose=False)
@@ -245,7 +245,7 @@ def load_and_segment(edf_path, seizure_intervals, fs=FS, window_sec=1):
 
     return np.array(windows), np.array(labels)
 
-# ─── PROCESSAMENTO DI TUTTI I FILE DEL PAZIENTE  ───
+# ─── PROCESS ALL PATIENT FILES ────────────────────────────────────────────────
 all_windows, all_labels = [], []
 
 all_edfs = sorted(f.name for f in DATASET_PATH.glob("*.edf"))
@@ -253,10 +253,10 @@ for edf_file in all_edfs:
     seizure_intervals = annotations.get(edf_file, [])
     edf_path = DATASET_PATH / edf_file
     if not edf_path.exists():
-        print(f"   ⚠ File non trovato, skip: {edf_file}")
+        print(f"   ⚠ File not found, skip: {edf_file}")
         continue
-    label = "con crisi" if seizure_intervals else "senza crisi"
-    print(f"   Processo ({label}): {edf_file}")
+    label = "with seizure" if seizure_intervals else "no seizure"
+    print(f"   Process ({label}): {edf_file}")
     X, y = load_and_segment(edf_path, seizure_intervals)
     if X is None:
         continue
@@ -266,12 +266,12 @@ for edf_file in all_edfs:
 X_all = np.concatenate(all_windows, axis=0)
 y_all = np.concatenate(all_labels,  axis=0)
 
-print(f"\nFinestre totali: {len(y_all)}")
-print(f"  Ictali:     {y_all.sum()}")
-print(f"  Non-ictali: {(y_all == 0).sum()}")
-print(f"  Rapporto:   1:{(y_all==0).sum() // max(y_all.sum(), 1)}")
+print(f"\nTotal windows: {len(y_all)}")
+print(f"  Ictal:     {y_all.sum()}")
+print(f"  Non-ictal: {(y_all == 0).sum()}")
+print(f"  Ratio:     1:{(y_all==0).sum() // max(y_all.sum(), 1)}")
 
-# ─── STEP 8: BILANCIAMENTO 4:1  ───────────────
+# ─── STEP 8: CLASS BALANCING 4:1 ──────────────────────────────────────────────
 ictal_idx     = np.where(y_all == 1)[0]
 non_ictal_idx = np.where(y_all == 0)[0]
 
@@ -282,17 +282,17 @@ bal_idx = np.sort(np.concatenate([ictal_idx, non_ictal_bal]))
 X_bal = X_all[bal_idx]
 y_bal = y_all[bal_idx]
 
-print(f"\nDopo bilanciamento 4:1:")
-print(f"  Ictali:     {y_bal.sum()}")
-print(f"  Non-ictali: {(y_bal == 0).sum()}")
+print(f"\nAfter 4:1 balancing:")
+print(f"  Ictal:     {y_bal.sum()}")
+print(f"  Non-ictal: {(y_bal == 0).sum()}")
 
-# ─── STEP 9: SALVATAGGIO ─────────────────────────────────────────────────────
+# ─── STEP 9: SAVE ─────────────────────────────────────────────────────────────
 X_tensor = torch.tensor(X_bal, dtype=torch.float32)
 y_tensor = torch.tensor(y_bal, dtype=torch.long)
 
 out_path = OUTPUT_DIR / f"{PATIENT_ID}_preprocessed.pt"
 torch.save({'X': X_tensor, 'y': y_tensor}, out_path)
 
-print(f"\n[OK] Salvato: {out_path}")
+print(f"\n[OK] Saved: {out_path}")
 print(f"   Shape X: {X_tensor.shape}")
 print(f"   Shape y: {y_tensor.shape}")

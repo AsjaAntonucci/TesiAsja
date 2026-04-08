@@ -1,17 +1,39 @@
+"""
+═══════════════════════════════════════════════════════════════════════════════
+                    MODEL - SPDNet Classic on Riemannian Manifold
+═══════════════════════════════════════════════════════════════════════════════
+
+ARCHITECTURE:
+  Symmetric Positive Definite (SPD) covariance matrices on Riemannian manifold
+  - Subspace projection: 21 channels → 8 dimensions
+  - Covariance computation: 8×8 SPD matrices
+  - Riemannian geometry: Geodesic distance in SPD manifold
+  - Classification: Linear classifier in tangent space
+
+DESIGN:
+  Input:  (batch, 21, 256)  - 21 bipolar channels, 256 temporal samples (1 second @ 256Hz)
+  Output: (batch, 2)        - Binary classification (seizure/non-seizure)
+  
+  Processing:
+    1. Raw EEG → Subspace projection (21 → 8) → Covariance matrix (8×8)
+    2. SPD manifold geometry: Symmetric, positive definite
+    3. Riemannian metric: Log-Euclidean or Affine-Invariant distance
+    4. Linear classification in tangent space at identity
+
+REFERENCE:
+  Based on spd_learn library - Riemannian geometry for EEG classification
+  Suitable for manifold-based machine learning on SPD matrices
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
 import torch.nn as nn
-from spd_learn.modules import CovLayer, BiMap, ReEig, LogEig, Shrinkage
+from spd_learn.models import SPDNet
 
 
 MODEL_PARAMS = {
-    'n_channels': 21,
-    'n_classes': 2,
-    'init_shrinkage': 0.1,
-    'bimap1_out': 10,
-    'bimap2_out': 5,
-    'bimap3_out': 2,
-    'tangent_dim': 3,
-    'architecture': 'CovLayer → Shrinkage → BiMap → ReEig → BiMap → ReEig → BiMap → ReEig → LogEig → Linear',
-    'reference': 'Huang & Van Gool (AAAI 2017)',
+    'n_channels':  21,
+    'n_classes':   2,
+    'subspacedim': 8,
 }
 
 TRAIN_PARAMS = {
@@ -20,7 +42,7 @@ TRAIN_PARAMS = {
     'weight_decay':    0.0,
     'loss':            'CrossEntropyLoss',
     'epochs':          500,
-    'patience':        25,
+    'patience':        30,
     'batch_size':      32,
     'train_split':     0.8,
     'val_split_final': 0.9,
@@ -32,39 +54,18 @@ TRAIN_PARAMS = {
 
 
 class SPDNetClassic(nn.Module):
-    """
-    SPDNet classico — Huang & Van Gool (AAAI 2017)
-    Pipeline: Raw → CovLayer → Shrinkage → BiMap → ReEig → BiMap → ReEig → BiMap → ReEig → LogEig → Linear
-    Input: (batch, 21, 256)
-    Output: (batch, 2)
-    """
-    def __init__(self, n_channels=MODEL_PARAMS['n_channels'],
-                 n_classes=MODEL_PARAMS['n_classes']):
+  
+    def __init__(self,
+                 n_channels=MODEL_PARAMS['n_channels'],
+                 n_classes=MODEL_PARAMS['n_classes'],
+                 subspacedim=MODEL_PARAMS['subspacedim']):
         super().__init__()
-        self.cov = CovLayer()
-        self.shrinkage = Shrinkage(n_chans=n_channels,
-                                   init_shrinkage=MODEL_PARAMS['init_shrinkage'])
-        self.bimap1 = BiMap(in_features=n_channels,
-                            out_features=n_channels // 2)   # 21 → 10
-        self.reeig1 = ReEig()
-        self.bimap2 = BiMap(in_features=n_channels // 2,
-                            out_features=n_channels // 4)   # 10 → 5
-        self.reeig2 = ReEig()
-        self.bimap3 = BiMap(in_features=n_channels // 4,
-                            out_features=n_channels // 8)   # 5 → 2
-        self.reeig3 = ReEig()
-        self.logeig = LogEig(upper=True)
-        tangent_dim = (n_channels // 8) * (n_channels // 8 + 1) // 2  # 2*3//2 = 3
-        self.classifier = nn.Linear(tangent_dim, n_classes)
+        self.model = SPDNet(
+            n_chans=n_channels,
+            n_outputs=n_classes,
+            input_type="raw",
+            subspacedim=subspacedim,
+        )
 
     def forward(self, x):
-        x = self.cov(x)
-        x = self.shrinkage(x)
-        x = self.bimap1(x)
-        x = self.reeig1(x)
-        x = self.bimap2(x)
-        x = self.reeig2(x)
-        x = self.bimap3(x)
-        x = self.reeig3(x)
-        x = self.logeig(x)
-        return self.classifier(x)
+        return self.model(x)

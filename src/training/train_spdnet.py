@@ -1,3 +1,31 @@
+"""
+═══════════════════════════════════════════════════════════════════════════════
+                    TRAINING - SPDNet Classic Model
+═══════════════════════════════════════════════════════════════════════════════
+
+TRAINING STEPS:
+  1. PARSE INPUT       → Accepts patient ID from command line
+  2. LOAD DATA         → Loads preprocessed EEG tensors (X, y) per patient
+  3. PREPARE SPLITS    → Stratified cross-validation (5-fold) setup
+  4. TRAIN MODEL       → SPDNet Classic with Adam optimizer + early stopping on Riemannian manifold
+  5. EVALUATE          → Computes balanced accuracy, sensitivity, confusion matrix
+  6. SAVE RESULTS      → Exports metrics, checkpoint, loss plots, parameters
+
+INPUT:
+  data/preprocessed/{patient_id}_preprocessed.pt
+
+OUTPUT:
+  results/metrics/{patient_id}_spdnet_results.csv      (evaluation metrics)
+  results/checkpoints/{patient_id}_spdnet.pt           (trained model weights)
+  results/plots/{patient_id}_spdnet_*.png              (loss and CV curves)
+  results/params/{patient_id}_spdnet_params.json       (model configuration)
+
+USAGE:
+  python train_spdnet.py -p chb01
+  python train_spdnet.py --patient 01
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
 import argparse
 import copy
 import csv
@@ -122,7 +150,7 @@ ax.set_xlabel('Fold'); ax.set_ylabel('Balanced Accuracy')
 ax.set_title(f'SPDNet Cross-Validation — {PATIENT_ID}')
 ax.set_ylim(0, 1.05); ax.set_xticks(folds_x); ax.legend()
 plt.tight_layout()
-plt.savefig(PLOTS_DIR / f"{PATIENT_ID}_spdnet_cv.png", dpi=150); plt.close()
+plt.savefig(PLOTS_DIR / f"{PATIENT_ID}_spdnetv2_cv.png", dpi=150); plt.close()
 
 # ─── Training finale ──────────────────────────────────────────────────────────
 print("\nTraining finale SPDNet...")
@@ -154,7 +182,8 @@ for epoch in range(MAX_EPOCHS):
     for Xb, yb in train_loader:
         optimizer.zero_grad()
         loss = criterion(model(Xb), yb)
-        loss.backward(); optimizer.step()
+        loss.backward()
+        optimizer.step()
         total_loss += loss.item()
     avg_train_loss = total_loss / len(train_loader)
     train_loss_history.append(round(avg_train_loss, 6))
@@ -191,7 +220,7 @@ ax.axvline(stopped_epoch, color='red', linestyle=':', linewidth=1.2,
 ax.set_xlabel('Epoch'); ax.set_ylabel('CrossEntropy Loss')
 ax.set_title(f'SPDNet Training — {PATIENT_ID}')
 ax.legend(); ax.grid(True, alpha=0.3); plt.tight_layout()
-plt.savefig(PLOTS_DIR / f"{PATIENT_ID}_spdnet_loss.png", dpi=150); plt.close()
+plt.savefig(PLOTS_DIR / f"{PATIENT_ID}_spdnetv2_loss.png", dpi=150); plt.close()
 
 # ─── Valutazione ──────────────────────────────────────────────────────────────
 model.eval()
@@ -205,17 +234,19 @@ bAcc = balanced_accuracy_score(all_true, all_preds)
 tn, fp, fn, tp = confusion_matrix(all_true, all_preds, labels=[0, 1]).ravel()
 sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
 specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+test_positive_rate = float(np.mean(np.array(all_preds) == 1))
 
 print(f"\n[OK] Risultati {PATIENT_ID} — SPDNet classic:")
 print(f"  Balanced Accuracy : {bAcc:.4f}")
 print(f"  Sensitivity       : {sensitivity:.4f}")
 print(f"  Specificity       : {specificity:.4f}")
+print(f"  Test positive rate: {test_positive_rate:.4f}")
 print(f"  TP={tp} FP={fp} TN={tn} FN={fn}")
 print(f"  CV Media          : {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
 print(f"  Early stop epoch  : {stopped_epoch}")
 
 params_log = {
-    'patient': PATIENT_ID, 'model': 'SPDNet_classic',
+    'patient': PATIENT_ID, 'model': 'SPDNet_v2',
     'device': str(DEVICE),
     'model_params': MODEL_PARAMS, 'train_params': TRAIN_PARAMS,
     'n_params': n_params,
@@ -234,18 +265,18 @@ params_log = {
     'sensitivity':        round(float(sensitivity), 4),
     'specificity':        round(float(specificity), 4),
 }
-with open(PARAMS_DIR / f"{PATIENT_ID}_spdnet_params.json", 'w') as f:
+with open(PARAMS_DIR / f"{PATIENT_ID}_spdnetv2_params.json", 'w') as f:
     json.dump(params_log, f, indent=2)
 
 # ─── CSV paziente-specifico (no race condition) ───────────────────────────────
-csv_path = RESULTS_DIR / f"{PATIENT_ID}_spdnet_results.csv"
+csv_path = RESULTS_DIR / f"{PATIENT_ID}_spdnetv2_results.csv"
 with open(csv_path, 'w', newline='') as f:
     writer = csv.DictWriter(f, fieldnames=[
         "model","patient","bAcc","sensitivity","specificity",
         "TP","FP","TN","FN","cv_mean","cv_std","final_loss","stopped_epoch"])
     writer.writeheader()
     writer.writerow({
-        "model": "SPDNet_classic", "patient": PATIENT_ID,
+        "model": "SPDNet_v2", "patient": PATIENT_ID,
         "bAcc": round(bAcc, 4), "sensitivity": round(sensitivity, 4),
         "specificity": round(specificity, 4),
         "TP": int(tp), "FP": int(fp), "TN": int(tn), "FN": int(fn),
@@ -256,5 +287,5 @@ with open(csv_path, 'w', newline='') as f:
     })
 print(f"  [CSV] Risultati salvati in {csv_path.name}")
 
-torch.save(model.state_dict(), CHECKPOINT_DIR / f"{PATIENT_ID}_spdnet_classic.pt")
+torch.save(model.state_dict(), CHECKPOINT_DIR / f"{PATIENT_ID}_spdnet_v2.pt")
 print(f"  [SAVE] Best model salvato")
